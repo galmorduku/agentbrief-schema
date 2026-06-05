@@ -1,13 +1,15 @@
-# AgentBrief by Duku — Agent Specification Schema v1
-# Apache-2.0 License — https://agentbrief.duku.xyz
+# AgentBrief by Duku - Agent Specification Schema v1
+# Apache-2.0 License - https://agentbrief.duku.xyz
 #
 # ─────────────────────────────────────────────
-# The 4-question framework
+# The 6-question framework (covers all 15 sections, no orphans)
 # ─────────────────────────────────────────────
-# Q1  Break it down into operations  →  mission + scope
-# Q2  Decision rules                 →  behavior + guardrails
-# Q3  Failure points                 →  evals + escalation + observability
-# Q4  Self-examination               →  lineage + versioning
+# Q1  What is this agent?                                   ->  identity
+# Q2  What does it do, and what does it never do?           ->  mission + scope
+# Q3  How does it decide, and what tools can it touch?      ->  behavior + guardrails + tools
+# Q4  When does it stop, escalate, or remember?             ->  escalation + trust + memory
+# Q5  How do we know it is working?                         ->  evals + observability + compliance
+# Q6  Who owns it, when does it change, what does it cost?  ->  versioning + lineage + sla
 # ─────────────────────────────────────────────
 #
 # Required sections   (5): identity, mission, scope, behavior, guardrails
@@ -53,7 +55,7 @@ properties:
     description: Schema version pin. Must be "1.0" for v1 specs.
 
   # ──────────────────────────────────────────
-  # REQUIRED — Q1 + Q2
+  # REQUIRED - Q1 (identity) + Q2 (mission, scope) + Q3 (behavior, guardrails)
   # ──────────────────────────────────────────
 
   identity:
@@ -74,12 +76,12 @@ properties:
         enum: [assistant, automation, monitor, researcher, orchestrator, evaluator]
         description: >
           Primary agent type.
-          assistant    — responds to user requests in real time.
-          automation   — executes tasks without a human in the loop.
-          monitor      — observes systems and triggers alerts or actions.
-          researcher   — gathers, synthesizes, and summarizes information.
-          orchestrator — coordinates multiple agents or sub-tasks.
-          evaluator    — grades or scores the output of other agents or systems.
+          assistant    - responds to user requests in real time.
+          automation   - executes tasks without a human in the loop.
+          monitor      - observes systems and triggers alerts or actions.
+          researcher   - gathers, synthesizes, and summarizes information.
+          orchestrator - coordinates multiple agents or sub-tasks.
+          evaluator    - grades or scores the output of other agents or systems.
       description:
         type: string
         maxLength: 280
@@ -91,7 +93,7 @@ properties:
   mission:
     type: object
     description: >
-      Q1 — Why this agent exists and what success looks like.
+      Q2 - Why this agent exists and what success looks like. (mission slice of Q2)
     additionalProperties: false
     required: [goal, north_star, success_criteria]
     properties:
@@ -120,7 +122,7 @@ properties:
   scope:
     type: object
     description: >
-      Q1 — What this agent does and explicitly does not do.
+      Q2 - What this agent does and explicitly does not do. (scope slice of Q2)
     additionalProperties: false
     required: [in_scope, out_of_scope, primary_users, deployment_context]
     properties:
@@ -147,14 +149,14 @@ properties:
               type: string
               enum: [hard_refuse, redirect, acknowledge_and_decline]
               description: >
-                hard_refuse          — agent refuses to engage under any circumstances.
-                redirect             — agent declines but points to the right resource or person.
-                acknowledge_and_decline — agent acknowledges the request and explains it's out of scope.
+                hard_refuse          - agent refuses to engage under any circumstances.
+                redirect             - agent declines but points to the right resource or person.
+                acknowledge_and_decline - agent acknowledges the request and explains it's out of scope.
       input_sources:
         type: array
         description: >
           Where this agent's inputs originate. Declaring input sources is required to reason about
-          injection risk and security posture — an agent reading uploaded documents has a different
+          injection risk and security posture - an agent reading uploaded documents has a different
           attack surface than one reading only user chat.
         items:
           type: string
@@ -172,7 +174,7 @@ properties:
   behavior:
     type: object
     description: >
-      Q2 — How this agent acts and makes decisions.
+      Q3 - How this agent acts and makes decisions. (behavior slice of Q3)
     additionalProperties: false
     required: [default_mode, decision_framework, communication_style, uncertainty_handling, rules]
     properties:
@@ -199,9 +201,9 @@ properties:
         enum: [reactive, deliberate, multi_step]
         description: >
           Reasoning strategy for this agent.
-          reactive   — single-pass response, no explicit chain-of-thought.
-          deliberate — agent pauses to reason before responding.
-          multi_step — agent plans and executes a multi-step reasoning chain.
+          reactive   - single-pass response, no explicit chain-of-thought.
+          deliberate - agent pauses to reason before responding.
+          multi_step - agent plans and executes a multi-step reasoning chain.
           Aligns with Braintrust plan-quality metrics, Galileo planner assessment,
           and LangSmith multi-turn trajectory analysis.
       on_failure:
@@ -209,16 +211,16 @@ properties:
         enum: [retry, escalate, acknowledge_and_stop, degrade_gracefully]
         description: >
           How the agent responds when it cannot complete a task.
-          retry                — re-attempt once before escalating.
-          escalate             — immediately hand off to the escalation path.
-          acknowledge_and_stop — inform the user and halt without escalating.
-          degrade_gracefully   — complete a reduced version of the task and flag the gap.
+          retry                - re-attempt once before escalating.
+          escalate             - immediately hand off to the escalation path.
+          acknowledge_and_stop - inform the user and halt without escalating.
+          degrade_gracefully   - complete a reduced version of the task and flag the gap.
           Covers the robustness dimension tested by DeepEval, AgentBench, and OSWorld.
 
   guardrails:
     type: object
     description: >
-      Q2 — Hard constraints on agent behavior. Non-negotiable.
+      Q3 - Hard constraints on agent behavior. Non-negotiable. (guardrails slice of Q3)
     additionalProperties: false
     required: [never, always]
     properties:
@@ -259,7 +261,7 @@ properties:
             description: How the agent defends against prompt injection, including indirect injection via documents.
 
   # ──────────────────────────────────────────
-  # OPTIONAL — Q1 extension
+  # OPTIONAL - Q3 (tools slice)
   # ──────────────────────────────────────────
 
   tools:
@@ -284,10 +286,10 @@ properties:
               type: string
               enum: [read, write, execute, communicate]
               description: >
-                read        — retrieves data, no side effects.
-                write       — modifies or creates data.
-                execute     — runs code or triggers external processes.
-                communicate — sends messages or notifications.
+                read        - retrieves data, no side effects.
+                write       - modifies or creates data.
+                execute     - runs code or triggers external processes.
+                communicate - sends messages or notifications.
             description:
               type: string
             auth_required:
@@ -313,13 +315,13 @@ properties:
           (Berkeley Function Calling Leaderboard) scoring. Example: 0.95 = 95%.
 
   # ──────────────────────────────────────────
-  # OPTIONAL — Q3: Failure points
+  # OPTIONAL - Q4 (escalation slice)
   # ──────────────────────────────────────────
 
   escalation:
     type: object
     description: >
-      Q3 — When and how this agent hands off to a human or another system.
+      Q4 - When and how this agent hands off to a human or another system. (escalation slice of Q4)
     additionalProperties: false
     properties:
       _maturity:
@@ -357,14 +359,14 @@ properties:
             type: string
             enum: [structured, prose, none]
             description: >
-              structured — machine-readable key/value payload.
-              prose       — free-text summary for a human or LLM recipient.
-              none        — no handoff context serialized.
+              structured - machine-readable key/value payload.
+              prose       - free-text summary for a human or LLM recipient.
+              none        - no handoff context serialized.
 
   evals:
     type: object
     description: >
-      Q3 — How to verify this agent is working correctly.
+      Q5 - How to verify this agent is working correctly. (evals slice of Q5)
     additionalProperties: false
     properties:
       _maturity:
@@ -383,10 +385,10 @@ properties:
               type: string
               enum: [unit, integration, e2e, adversarial]
               description: >
-                unit        — single turn, isolated behavior.
-                integration — multi-step with real tool calls.
-                e2e         — full user journey.
-                adversarial — attempts to break guardrails or extract prohibited outputs.
+                unit        - single turn, isolated behavior.
+                integration - multi-step with real tool calls.
+                e2e         - full user journey.
+                adversarial - attempts to break guardrails or extract prohibited outputs.
             input:
               type: string
             expected:
@@ -395,10 +397,10 @@ properties:
               type: string
               enum: [contains, exact_match, not_contains, human_review]
               description: >
-                contains      — output must include the expected string.
-                exact_match   — output must equal expected exactly.
-                not_contains  — output must not include the expected string (use for guardrail tests).
-                human_review  — no automated check; flags for manual review on each run.
+                contains      - output must include the expected string.
+                exact_match   - output must equal expected exactly.
+                not_contains  - output must not include the expected string (use for guardrail tests).
+                human_review  - no automated check; flags for manual review on each run.
             notes:
               type: string
       guardrail_coverage:
@@ -421,15 +423,15 @@ properties:
         enum: [deploy, scheduled, manual]
         description: >
           What event triggers a full re-verification run against all declared eval frameworks.
-          deploy    — re-verify on every new agent deployment (recommended for production agents).
-          scheduled — re-verify on a fixed cadence (set in feedback_loop.review_cadence).
-          manual    — re-verify only when explicitly triggered by the improvement_owner.
+          deploy    - re-verify on every new agent deployment (recommended for production agents).
+          scheduled - re-verify on a fixed cadence (set in feedback_loop.review_cadence).
+          manual    - re-verify only when explicitly triggered by the improvement_owner.
           Supports Phase 3 (ongoing compliance) of the AgentBrief lifecycle.
       feedback_loop:
         type: object
         description: >
           Declares the improvement process for this agent. Covers Sensei's self-improvement
-          evaluation layer (20%) — the spec cannot force a model to learn autonomously, but
+          evaluation layer (20%) - the spec cannot force a model to learn autonomously, but
           it can declare the process by which failures are reviewed and acted on.
         additionalProperties: false
         properties:
@@ -493,7 +495,7 @@ properties:
             maximum: 1
             description: >
               Minimum acceptable faithfulness score (0–1). Output must be grounded in
-              retrieved context — not hallucinated. Ragas faithfulness metric.
+              retrieved context - not hallucinated. Ragas faithfulness metric.
           answer_relevancy_target:
             type: number
             minimum: 0
@@ -508,7 +510,7 @@ properties:
   observability:
     type: object
     description: >
-      Q3 — What to log, monitor, and alert on.
+      Q5 - What to log, monitor, and alert on. (observability slice of Q5)
     additionalProperties: false
     properties:
       _maturity:
@@ -540,7 +542,7 @@ properties:
               description: Where the alert fires (Slack channel, PagerDuty service, email).
 
   # ──────────────────────────────────────────
-  # OPTIONAL — Compliance
+  # OPTIONAL - Q5 (compliance slice)
   # ──────────────────────────────────────────
 
   compliance:
@@ -569,13 +571,13 @@ properties:
         type: object
         description: >
           AIUC-1 control domain coverage declarations (aiuc-1.com).
-          AIUC-1 is the emerging "SOC2 for AI agents" certification standard —
+          AIUC-1 is the emerging "SOC2 for AI agents" certification standard -
           50+ controls across 6 domains, third-party tested, 12-month certificate.
           Declaring coverage here is the first step toward AIUC-1 certification readiness.
           Status values:
-            declared  — control is addressed in this spec (guardrails, evals, etc.)
-            tested    — control has been validated through evals or third-party review
-            certified — AIUC-1 has independently certified this domain
+            declared  - control is addressed in this spec (guardrails, evals, etc.)
+            tested    - control has been validated through evals or third-party review
+            certified - AIUC-1 has independently certified this domain
         additionalProperties: false
         properties:
           safety:
@@ -622,10 +624,10 @@ properties:
           The Agentic Profile maps to EU AI Act, GDPR, HIPAA, SOC 2, and ISO 42001.
           Declaring alignment here provides instant regulatory framing across international standards.
           Status values:
-            not_addressed — this function is not yet covered in the spec
-            partial       — some coverage exists but gaps remain
-            addressed     — all core controls for this function are declared
-            documented    — addressed + rationale documented in lineage or notes
+            not_addressed - this function is not yet covered in the spec
+            partial       - some coverage exists but gaps remain
+            addressed     - all core controls for this function are declared
+            documented    - addressed + rationale documented in lineage or notes
         additionalProperties: false
         properties:
           profile:
@@ -640,7 +642,7 @@ properties:
             type: string
             enum: [not_addressed, partial, addressed, documented]
             description: >
-              Organizational governance of AI risks — policies, accountability structures,
+              Organizational governance of AI risks - policies, accountability structures,
               risk tolerance. Maps to: lineage (rationale, stakeholders),
               compliance.regulations, versioning.deprecation_policy.
           map:
@@ -665,7 +667,7 @@ properties:
         type: object
         description: >
           EU AI Act classification and compliance declarations.
-          In force August 2024; 2-3 year implementation. Risk-based framework —
+          In force August 2024; 2-3 year implementation. Risk-based framework -
           agentic systems often classified as high or limited risk.
         additionalProperties: false
         properties:
@@ -674,11 +676,11 @@ properties:
             enum: [unacceptable, high, limited, minimal]
             description: >
               EU AI Act risk classification for this agent.
-              unacceptable — prohibited use case (e.g. social scoring, manipulation).
-              high         — significant requirements: medical, employment, education,
+              unacceptable - prohibited use case (e.g. social scoring, manipulation).
+              high         - significant requirements: medical, employment, education,
                              critical infrastructure, law enforcement adjacent.
-              limited      — transparency obligations: chatbots must disclose they are AI.
-              minimal      — no specific requirements.
+              limited      - transparency obligations: chatbots must disclose they are AI.
+              minimal      - no specific requirements.
           intended_purpose:
             type: string
             description: >
@@ -692,13 +694,13 @@ properties:
               Describe how humans can monitor, intervene, and override this agent.
 
   # ──────────────────────────────────────────
-  # OPTIONAL — Q4: Self-examination
+  # OPTIONAL - Q6 (versioning + lineage slices)
   # ──────────────────────────────────────────
 
   versioning:
     type: object
     description: >
-      Q4 — Version history and change management for this spec.
+      Q6 - Version history and change management for this spec. (versioning slice of Q6)
     additionalProperties: false
     properties:
       _maturity:
@@ -711,8 +713,8 @@ properties:
   lineage:
     type: object
     description: >
-      Q4 — Why this agent was built and who depends on it.
-      Author, creation date, and derivation history are tracked by git — declare only what git cannot.
+      Q6 - Why this agent was built and who depends on it. (lineage slice of Q6)
+      Author, creation date, and derivation history are tracked by git - declare only what git cannot.
     additionalProperties: false
     properties:
       _maturity:
@@ -728,7 +730,7 @@ properties:
         description: Teams or individuals who depend on this agent running correctly.
 
   # ──────────────────────────────────────────
-  # OPTIONAL — Memory architecture
+  # OPTIONAL - Q4 (memory slice)
   # ──────────────────────────────────────────
 
   memory:
@@ -778,7 +780,7 @@ properties:
         description: Whether the agent tracks named entities (people, orgs, concepts) across sessions.
 
   # ──────────────────────────────────────────
-  # OPTIONAL — Trust and autonomy
+  # OPTIONAL - Q4 (trust slice)
   # ──────────────────────────────────────────
 
   trust:
@@ -800,9 +802,9 @@ properties:
           Map of action category → autonomy level.
           Keys are free-text action categories (e.g. "read data", "send notifications", "modify records").
           Values must be one of: inform | propose | act.
-          inform  — agent surfaces findings; human decides and executes.
-          propose — agent recommends an action; human approves before execution.
-          act     — agent executes autonomously without human approval.
+          inform  - agent surfaces findings; human decides and executes.
+          propose - agent recommends an action; human approves before execution.
+          act     - agent executes autonomously without human approval.
         additionalProperties:
           type: string
           enum: [inform, propose, act]
@@ -815,7 +817,7 @@ properties:
           Below this threshold the agent downgrades to "propose" regardless of autonomy_levels.
 
   # ──────────────────────────────────────────
-  # OPTIONAL — SLA and cost contracts
+  # OPTIONAL - Q6 (SLA slice)
   # ──────────────────────────────────────────
 
   sla:
