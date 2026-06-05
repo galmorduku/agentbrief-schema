@@ -1,0 +1,845 @@
+# AgentBrief by Duku — Agent Specification Schema v1
+# Apache-2.0 License — https://agentbrief.duku.xyz
+#
+# ─────────────────────────────────────────────
+# The 4-question framework
+# ─────────────────────────────────────────────
+# Q1  Break it down into operations  →  mission + scope
+# Q2  Decision rules                 →  behavior + guardrails
+# Q3  Failure points                 →  evals + escalation + observability
+# Q4  Self-examination               →  lineage + versioning
+# ─────────────────────────────────────────────
+#
+# Required sections   (5): identity, mission, scope, behavior, guardrails
+# Optional sections  (10): tools, escalation, evals, observability, compliance, versioning, lineage, memory, trust, sla
+#
+# Optional sections carry a _maturity field: draft | reviewed | production
+# Use it to track spec completeness without blocking on unfinished sections.
+#
+# Total: 15 sections (5 required + 10 optional)
+#
+# Note: fields marked "v2" in descriptions are intentionally declared in v1 for forward compatibility
+# but enforcement (runtime drift detection, automated test execution) ships in v2.
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://agentbrief.duku.xyz/schema/v1.json"
+title: AgentBrief Agent Specification v1
+description: >
+  PM-grade specification for AI agents. Covers identity, mission, scope,
+  behavior, guardrails, tooling, escalation, evals, observability, compliance,
+  versioning, lineage, memory, trust, and sla. Apache-2.0.
+  Designed to align with major agent evaluation frameworks: Sensei, DeepEval,
+  Promptfoo, Braintrust, LangSmith, Galileo, Ragas, GAIA, AgentBench, OSWorld, and BFCL.
+type: object
+additionalProperties: false
+
+required:
+  - agentbrief_schema
+  - identity
+  - mission
+  - scope
+  - behavior
+  - guardrails
+
+properties:
+
+  # ──────────────────────────────────────────
+  # Root metadata
+  # ──────────────────────────────────────────
+
+  agentbrief_schema:
+    type: string
+    const: "1.0"
+    description: Schema version pin. Must be "1.0" for v1 specs.
+
+  # ──────────────────────────────────────────
+  # REQUIRED — Q1 + Q2
+  # ──────────────────────────────────────────
+
+  identity:
+    type: object
+    description: Who and what this agent is.
+    additionalProperties: false
+    required: [name, version, type, description, owner]
+    properties:
+      name:
+        type: string
+        description: Display name of the agent.
+      version:
+        type: string
+        pattern: "^\\d+\\.\\d+\\.\\d+$"
+        description: Semantic version of this spec (e.g. "1.0.0").
+      type:
+        type: string
+        enum: [assistant, automation, monitor, researcher, orchestrator, evaluator]
+        description: >
+          Primary agent type.
+          assistant    — responds to user requests in real time.
+          automation   — executes tasks without a human in the loop.
+          monitor      — observes systems and triggers alerts or actions.
+          researcher   — gathers, synthesizes, and summarizes information.
+          orchestrator — coordinates multiple agents or sub-tasks.
+          evaluator    — grades or scores the output of other agents or systems.
+      description:
+        type: string
+        maxLength: 280
+        description: One or two sentence plain-language summary.
+      owner:
+        type: string
+        description: Person or team responsible for this agent.
+
+  mission:
+    type: object
+    description: >
+      Q1 — Why this agent exists and what success looks like.
+    additionalProperties: false
+    required: [goal, north_star, success_criteria]
+    properties:
+      goal:
+        type: string
+        description: What the agent achieves for its users. One sentence.
+      north_star:
+        type: object
+        description: The single metric that defines whether this agent is succeeding. Must be measurable, not aspirational.
+        additionalProperties: false
+        required: [metric, target]
+        properties:
+          metric:
+            type: string
+            description: What you measure (e.g. "onboarding completion rate", "tickets resolved without escalation").
+          target:
+            type: string
+            description: The threshold that defines success (e.g. ">70% within 24h", "<5% escalation rate").
+      success_criteria:
+        type: array
+        items:
+          type: string
+        minItems: 1
+        description: Measurable outcomes. Each item is a specific, verifiable condition.
+
+  scope:
+    type: object
+    description: >
+      Q1 — What this agent does and explicitly does not do.
+    additionalProperties: false
+    required: [in_scope, out_of_scope, primary_users, deployment_context]
+    properties:
+      in_scope:
+        type: array
+        items:
+          type: string
+        minItems: 1
+        description: Tasks this agent handles.
+      out_of_scope:
+        type: array
+        description: >
+          Topics and tasks this agent does not handle. Explicit out-of-scope is as important as in-scope.
+          Each entry declares both what is excluded and how the agent responds when a user asks about it.
+        items:
+          type: object
+          additionalProperties: false
+          required: [topic, handling]
+          properties:
+            topic:
+              type: string
+              description: The task or topic that is out of scope.
+            handling:
+              type: string
+              enum: [hard_refuse, redirect, acknowledge_and_decline]
+              description: >
+                hard_refuse          — agent refuses to engage under any circumstances.
+                redirect             — agent declines but points to the right resource or person.
+                acknowledge_and_decline — agent acknowledges the request and explains it's out of scope.
+      input_sources:
+        type: array
+        description: >
+          Where this agent's inputs originate. Declaring input sources is required to reason about
+          injection risk and security posture — an agent reading uploaded documents has a different
+          attack surface than one reading only user chat.
+        items:
+          type: string
+          enum: [user_chat, documents, database, api, email, code, web]
+      primary_users:
+        type: array
+        items:
+          type: string
+        minItems: 1
+        description: Who uses or triggers this agent.
+      deployment_context:
+        type: string
+        description: Where and how this agent runs.
+
+  behavior:
+    type: object
+    description: >
+      Q2 — How this agent acts and makes decisions.
+    additionalProperties: false
+    required: [default_mode, decision_framework, communication_style, uncertainty_handling, rules]
+    properties:
+      default_mode:
+        type: string
+        description: How the agent behaves in the normal, no-edge-case path.
+      decision_framework:
+        type: string
+        description: How the agent prioritizes when demands or instructions compete.
+      communication_style:
+        type: string
+        description: Tone, format, and length norms for all agent output.
+      uncertainty_handling:
+        type: string
+        description: What the agent does when it lacks confidence or sufficient information.
+      rules:
+        type: array
+        items:
+          type: string
+        minItems: 1
+        description: Explicit behavioral rules. Write in positive, active framing.
+      reasoning_depth:
+        type: string
+        enum: [reactive, deliberate, multi_step]
+        description: >
+          Reasoning strategy for this agent.
+          reactive   — single-pass response, no explicit chain-of-thought.
+          deliberate — agent pauses to reason before responding.
+          multi_step — agent plans and executes a multi-step reasoning chain.
+          Aligns with Braintrust plan-quality metrics, Galileo planner assessment,
+          and LangSmith multi-turn trajectory analysis.
+      on_failure:
+        type: string
+        enum: [retry, escalate, acknowledge_and_stop, degrade_gracefully]
+        description: >
+          How the agent responds when it cannot complete a task.
+          retry                — re-attempt once before escalating.
+          escalate             — immediately hand off to the escalation path.
+          acknowledge_and_stop — inform the user and halt without escalating.
+          degrade_gracefully   — complete a reduced version of the task and flag the gap.
+          Covers the robustness dimension tested by DeepEval, AgentBench, and OSWorld.
+
+  guardrails:
+    type: object
+    description: >
+      Q2 — Hard constraints on agent behavior. Non-negotiable.
+    additionalProperties: false
+    required: [never, always]
+    properties:
+      never:
+        type: array
+        items:
+          type: string
+        minItems: 1
+        description: Absolute prohibitions. The agent must never do these under any circumstances.
+      always:
+        type: array
+        items:
+          type: string
+        description: Absolute requirements. The agent must always do these.
+      require_confirmation:
+        type: array
+        items:
+          type: string
+        description: Actions that require explicit human approval before the agent executes them.
+      security:
+        type: object
+        description: >
+          Security posture declarations. Anchored to OWASP Top 10 for Agentic Applications (Dec 2025).
+        additionalProperties: false
+        properties:
+          sandbox_required:
+            type: boolean
+            description: Whether this agent must run in an isolated sandbox environment.
+          allow_external_data_exfiltration:
+            type: boolean
+            default: false
+            description: Whether the agent is permitted to send data to external endpoints not declared in tools.
+          input_validation:
+            type: string
+            description: How inputs are validated before being passed to tool calls (e.g. "schema validation on all tool inputs").
+          injection_defense:
+            type: string
+            description: How the agent defends against prompt injection, including indirect injection via documents.
+
+  # ──────────────────────────────────────────
+  # OPTIONAL — Q1 extension
+  # ──────────────────────────────────────────
+
+  tools:
+    type: object
+    description: External systems, APIs, and data sources the agent can access.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+        description: How complete and validated this section is.
+      items:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [name, type, description]
+          properties:
+            name:
+              type: string
+            type:
+              type: string
+              enum: [read, write, execute, communicate]
+              description: >
+                read        — retrieves data, no side effects.
+                write       — modifies or creates data.
+                execute     — runs code or triggers external processes.
+                communicate — sends messages or notifications.
+            description:
+              type: string
+            auth_required:
+              type: boolean
+              default: true
+            sensitivity:
+              type: string
+              enum: [public, internal, confidential, restricted]
+              default: internal
+            requires_confirmation:
+              type: boolean
+              default: false
+              description: >
+                Whether a human must explicitly approve before this specific tool is called.
+                More precise than the global guardrails.require_confirmation list.
+      accuracy_target:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: >
+          Expected tool selection accuracy (0–1). Minimum acceptable rate at which
+          the agent selects the correct tool given a task. Aligns with BFCL
+          (Berkeley Function Calling Leaderboard) scoring. Example: 0.95 = 95%.
+
+  # ──────────────────────────────────────────
+  # OPTIONAL — Q3: Failure points
+  # ──────────────────────────────────────────
+
+  escalation:
+    type: object
+    description: >
+      Q3 — When and how this agent hands off to a human or another system.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+      triggers:
+        type: array
+        items:
+          type: string
+        description: Conditions that cause the agent to escalate out of autonomous operation.
+      path:
+        type: string
+        description: Who or what receives the escalation (person, team, queue, or system name).
+      timeout_minutes:
+        type: integer
+        minimum: 0
+        description: Minutes before the agent auto-escalates if no human action is taken.
+      fallback:
+        type: string
+        description: What the agent does while waiting for a human response.
+      handoff:
+        type: object
+        description: >
+          Context serialization schema for agent-to-agent handoffs.
+          Declares what gets passed when this agent transfers work to another agent or system.
+        additionalProperties: false
+        properties:
+          serialize:
+            type: array
+            items:
+              type: string
+              enum: [decisions, open_questions, artifacts, failed_approaches]
+            description: What context categories to include in a handoff payload.
+          format:
+            type: string
+            enum: [structured, prose, none]
+            description: >
+              structured — machine-readable key/value payload.
+              prose       — free-text summary for a human or LLM recipient.
+              none        — no handoff context serialized.
+
+  evals:
+    type: object
+    description: >
+      Q3 — How to verify this agent is working correctly.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+      test_cases:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [name, type, input, expected]
+          properties:
+            name:
+              type: string
+            type:
+              type: string
+              enum: [unit, integration, e2e, adversarial]
+              description: >
+                unit        — single turn, isolated behavior.
+                integration — multi-step with real tool calls.
+                e2e         — full user journey.
+                adversarial — attempts to break guardrails or extract prohibited outputs.
+            input:
+              type: string
+            expected:
+              type: string
+            pass_condition:
+              type: string
+              enum: [contains, exact_match, not_contains, human_review]
+              description: >
+                contains      — output must include the expected string.
+                exact_match   — output must equal expected exactly.
+                not_contains  — output must not include the expected string (use for guardrail tests).
+                human_review  — no automated check; flags for manual review on each run.
+            notes:
+              type: string
+      guardrail_coverage:
+        type: boolean
+        description: >
+          Whether every item in guardrails.never is covered by at least one adversarial test case.
+          Set to true only when coverage is confirmed. Validators will flag false as a spec gap.
+      pass_threshold:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: Fraction of test cases that must pass (e.g. 0.95 for 95%).
+      regression_guard:
+        type: array
+        items:
+          type: string
+        description: Behaviors that must never regress between versions. Checked on every deploy.
+      verification_trigger:
+        type: string
+        enum: [deploy, scheduled, manual]
+        description: >
+          What event triggers a full re-verification run against all declared eval frameworks.
+          deploy    — re-verify on every new agent deployment (recommended for production agents).
+          scheduled — re-verify on a fixed cadence (set in feedback_loop.review_cadence).
+          manual    — re-verify only when explicitly triggered by the improvement_owner.
+          Supports Phase 3 (ongoing compliance) of the AgentBrief lifecycle.
+      feedback_loop:
+        type: object
+        description: >
+          Declares the improvement process for this agent. Covers Sensei's self-improvement
+          evaluation layer (20%) — the spec cannot force a model to learn autonomously, but
+          it can declare the process by which failures are reviewed and acted on.
+        additionalProperties: false
+        properties:
+          capture_failures:
+            type: boolean
+            default: false
+            description: Whether the agent logs when it fails a test case or hits a guardrail.
+          review_cadence:
+            type: string
+            enum: [per_session, daily, weekly, monthly, manual]
+            description: How often failure logs are reviewed and acted on.
+          improvement_owner:
+            type: string
+            description: Person or team who reviews failures and decides whether to update the spec.
+          update_trigger:
+            type: string
+            enum: [failure_rate_threshold, manual, scheduled]
+            description: What condition initiates a spec revision.
+          failure_rate_threshold:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: >
+              When update_trigger is failure_rate_threshold: the failure rate (0–1) that
+              triggers a spec review. Example: 0.10 = trigger revision when 10% of evals fail.
+      benchmark_targets:
+        type: array
+        description: >
+          Public benchmark targets this agent is built to meet. Declares capability claims
+          against GAIA, AgentBench, OSWorld, BFCL, and similar leaderboards.
+          These are aspirational targets until the agent has been formally evaluated.
+        items:
+          type: object
+          additionalProperties: false
+          required: [name, target]
+          properties:
+            name:
+              type: string
+              description: Benchmark name (e.g. "GAIA", "OSWorld", "AgentBench", "BFCL").
+            level:
+              type: string
+              description: Difficulty level or domain subset (e.g. "level_2", "web_shopping", "v4").
+            target:
+              type: string
+              description: Target score or success rate (e.g. ">75%", "top_quartile", ">0.90").
+            validated:
+              type: boolean
+              default: false
+              description: Set to true once the agent has been formally evaluated against this benchmark.
+      rag_quality:
+        type: object
+        description: >
+          Retrieval quality targets. Relevant when scope.input_sources includes
+          documents or database. Aligns with Ragas evaluation metrics.
+          Leave unset for agents that do not use retrieval-augmented generation.
+        additionalProperties: false
+        properties:
+          faithfulness_target:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: >
+              Minimum acceptable faithfulness score (0–1). Output must be grounded in
+              retrieved context — not hallucinated. Ragas faithfulness metric.
+          answer_relevancy_target:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: Minimum acceptable answer relevancy score (0–1). Ragas answer_relevancy metric.
+          context_precision_target:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: Minimum acceptable context precision score (0–1). Ragas context_precision metric.
+
+  observability:
+    type: object
+    description: >
+      Q3 — What to log, monitor, and alert on.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+      log_level:
+        type: string
+        enum: [debug, info, warn, error]
+        default: info
+      required_events:
+        type: array
+        items:
+          type: string
+        description: Events that must always be logged regardless of log level.
+      alerts:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [condition, severity]
+          properties:
+            condition:
+              type: string
+            severity:
+              type: string
+              enum: [low, medium, high, critical]
+            channel:
+              type: string
+              description: Where the alert fires (Slack channel, PagerDuty service, email).
+
+  # ──────────────────────────────────────────
+  # OPTIONAL — Compliance
+  # ──────────────────────────────────────────
+
+  compliance:
+    type: object
+    description: >
+      Legal, privacy, and regulatory requirements. Includes AIUC-1 control domain alignment,
+      NIST AI RMF function coverage, and EU AI Act risk classification.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+      regulations:
+        type: array
+        items:
+          type: string
+        description: Applicable frameworks (e.g. GDPR, HIPAA, CCPA, SOC2, EU AI Act).
+      pii_handling:
+        type: string
+        description: How personally identifiable information is treated by this agent.
+      audit_trail_required:
+        type: boolean
+        default: false
+        description: Whether an immutable audit trail of agent actions is required.
+      aiuc1:
+        type: object
+        description: >
+          AIUC-1 control domain coverage declarations (aiuc-1.com).
+          AIUC-1 is the emerging "SOC2 for AI agents" certification standard —
+          50+ controls across 6 domains, third-party tested, 12-month certificate.
+          Declaring coverage here is the first step toward AIUC-1 certification readiness.
+          Status values:
+            declared  — control is addressed in this spec (guardrails, evals, etc.)
+            tested    — control has been validated through evals or third-party review
+            certified — AIUC-1 has independently certified this domain
+        additionalProperties: false
+        properties:
+          safety:
+            type: string
+            enum: [declared, tested, certified]
+            description: >
+              Agent safety controls. Maps to: guardrails.never, guardrails.always,
+              guardrails.security, evals.test_cases (adversarial type).
+          security:
+            type: string
+            enum: [declared, tested, certified]
+            description: >
+              Security posture. Maps to: guardrails.security, scope.input_sources,
+              tools.items (auth_required, sensitivity), compliance.pii_handling.
+          reliability:
+            type: string
+            enum: [declared, tested, certified]
+            description: >
+              Operational reliability. Maps to: evals.pass_threshold,
+              evals.regression_guard, sla, behavior.on_failure.
+          accountability:
+            type: string
+            enum: [declared, tested, certified]
+            description: >
+              Traceability and ownership. Maps to: lineage.rationale,
+              lineage.stakeholders, observability, compliance.audit_trail_required.
+          data_and_privacy:
+            type: string
+            enum: [declared, tested, certified]
+            description: >
+              Data handling and privacy. Maps to: memory.long_term.retention_days,
+              compliance.pii_handling, compliance.regulations, guardrails.security.
+          society:
+            type: string
+            enum: [declared, tested, certified]
+            description: >
+              Societal impact and ethical constraints. Maps to: guardrails.never
+              (ethical prohibitions), identity.type, mission.goal.
+      nist_rmf:
+        type: object
+        description: >
+          NIST AI Risk Management Framework alignment (NIST AI RMF + Agentic Profile).
+          NIST launched an AI Agent Standards Initiative in February 2026.
+          The Agentic Profile maps to EU AI Act, GDPR, HIPAA, SOC 2, and ISO 42001.
+          Declaring alignment here provides instant regulatory framing across international standards.
+          Status values:
+            not_addressed — this function is not yet covered in the spec
+            partial       — some coverage exists but gaps remain
+            addressed     — all core controls for this function are declared
+            documented    — addressed + rationale documented in lineage or notes
+        additionalProperties: false
+        properties:
+          profile:
+            type: string
+            enum: [standard, agentic]
+            default: agentic
+            description: >
+              Which NIST AI RMF profile applies. Use "agentic" for autonomous or
+              semi-autonomous agents (recommended). The Agentic Profile extends the
+              standard RMF with agent-specific controls.
+          govern:
+            type: string
+            enum: [not_addressed, partial, addressed, documented]
+            description: >
+              Organizational governance of AI risks — policies, accountability structures,
+              risk tolerance. Maps to: lineage (rationale, stakeholders),
+              compliance.regulations, versioning.deprecation_policy.
+          map:
+            type: string
+            enum: [not_addressed, partial, addressed, documented]
+            description: >
+              Identify and categorize AI risks in context. Maps to: scope
+              (in_scope, out_of_scope, input_sources), guardrails, trust.autonomy_levels.
+          measure:
+            type: string
+            enum: [not_addressed, partial, addressed, documented]
+            description: >
+              Analyze and assess AI risks. Maps to: evals (test_cases, guardrail_coverage,
+              pass_threshold), observability, sla, trust.confidence_threshold.
+          manage:
+            type: string
+            enum: [not_addressed, partial, addressed, documented]
+            description: >
+              Prioritize and address AI risks. Maps to: escalation, behavior.on_failure,
+              evals.feedback_loop, versioning.
+      eu_ai_act:
+        type: object
+        description: >
+          EU AI Act classification and compliance declarations.
+          In force August 2024; 2-3 year implementation. Risk-based framework —
+          agentic systems often classified as high or limited risk.
+        additionalProperties: false
+        properties:
+          risk_category:
+            type: string
+            enum: [unacceptable, high, limited, minimal]
+            description: >
+              EU AI Act risk classification for this agent.
+              unacceptable — prohibited use case (e.g. social scoring, manipulation).
+              high         — significant requirements: medical, employment, education,
+                             critical infrastructure, law enforcement adjacent.
+              limited      — transparency obligations: chatbots must disclose they are AI.
+              minimal      — no specific requirements.
+          intended_purpose:
+            type: string
+            description: >
+              EU AI Act Article 6 intended purpose declaration.
+              Required for high-risk classification. Plain language statement of what
+              this agent is designed to do and the context in which it operates.
+          human_oversight:
+            type: string
+            description: >
+              Human oversight measures per EU AI Act Article 14. Required for high-risk.
+              Describe how humans can monitor, intervene, and override this agent.
+
+  # ──────────────────────────────────────────
+  # OPTIONAL — Q4: Self-examination
+  # ──────────────────────────────────────────
+
+  versioning:
+    type: object
+    description: >
+      Q4 — Version history and change management for this spec.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+      deprecation_policy:
+        type: string
+        description: How breaking changes to this agent will be communicated and handled.
+
+  lineage:
+    type: object
+    description: >
+      Q4 — Why this agent was built and who depends on it.
+      Author, creation date, and derivation history are tracked by git — declare only what git cannot.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+      rationale:
+        type: string
+        description: Why this agent was built and what problem it solves. The canonical "why" that justifies this agent's existence.
+      stakeholders:
+        type: array
+        items:
+          type: string
+        description: Teams or individuals who depend on this agent running correctly.
+
+  # ──────────────────────────────────────────
+  # OPTIONAL — Memory architecture
+  # ──────────────────────────────────────────
+
+  memory:
+    type: object
+    description: >
+      Declares the agent's memory architecture. Prevents long-term facts leaking into
+      short-term context, enforces retention policy for compliance, and specifies
+      compaction strategy to maintain performance over time.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+        description: How complete and validated this section is.
+      short_term:
+        type: object
+        description: In-context memory for the current session or task.
+        additionalProperties: false
+        properties:
+          max_turns:
+            type: integer
+            minimum: 1
+            description: Maximum conversation turns to retain in active context.
+          compaction_strategy:
+            type: string
+            description: >
+              How context is compressed when it approaches the limit
+              (e.g. "summarize oldest 50%", "drop tool call results after acknowledgment").
+      long_term:
+        type: object
+        description: Persistent memory that survives across sessions.
+        additionalProperties: false
+        properties:
+          backend:
+            type: string
+            description: Storage system used (e.g. "SQLite", "Pinecone", "PostgreSQL + pgvector").
+          retrieval_method:
+            type: string
+            description: How relevant memories are surfaced (e.g. "semantic similarity", "keyword search", "recency").
+          retention_days:
+            type: integer
+            minimum: 0
+            description: Maximum days to retain entries before expiry. 0 = indefinite (requires explicit compliance justification).
+      entity_memory:
+        type: boolean
+        default: false
+        description: Whether the agent tracks named entities (people, orgs, concepts) across sessions.
+
+  # ──────────────────────────────────────────
+  # OPTIONAL — Trust and autonomy
+  # ──────────────────────────────────────────
+
+  trust:
+    type: object
+    description: >
+      Declares how much autonomy the agent has per action category.
+      Prevents the "permissive pilot" failure: agents shipped with full autonomy
+      that can't be scoped down after the fact. Modelled on PagerDuty's SRE
+      triage → diagnosis → remediation framework.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+        description: How complete and validated this section is.
+      autonomy_levels:
+        type: object
+        description: >
+          Map of action category → autonomy level.
+          Keys are free-text action categories (e.g. "read data", "send notifications", "modify records").
+          Values must be one of: inform | propose | act.
+          inform  — agent surfaces findings; human decides and executes.
+          propose — agent recommends an action; human approves before execution.
+          act     — agent executes autonomously without human approval.
+        additionalProperties:
+          type: string
+          enum: [inform, propose, act]
+      confidence_threshold:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: >
+          Minimum confidence score (0–1) required before the agent takes autonomous action.
+          Below this threshold the agent downgrades to "propose" regardless of autonomy_levels.
+
+  # ──────────────────────────────────────────
+  # OPTIONAL — SLA and cost contracts
+  # ──────────────────────────────────────────
+
+  sla:
+    type: object
+    description: >
+      Declares performance and cost contracts for this agent.
+      Identical tasks can produce materially different token consumption and latency
+      depending on reasoning depth and tool path. Declaring these upfront lets the
+      runtime layer enforce gates before costs or latency spiral.
+    additionalProperties: false
+    properties:
+      _maturity:
+        type: string
+        enum: [draft, reviewed, production]
+        description: How complete and validated this section is.
+      max_latency_ms:
+        type: integer
+        minimum: 0
+        description: Maximum acceptable end-to-end response time in milliseconds.
+      max_tokens_per_run:
+        type: integer
+        minimum: 0
+        description: Maximum tokens (input + output combined) allowed per single agent run.
+      cost_ceiling_usd:
+        type: number
+        minimum: 0
+        description: Maximum cost in USD allowed per single agent run.
