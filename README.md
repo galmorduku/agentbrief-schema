@@ -10,18 +10,24 @@
 
 ## Why a spec?
 
-Most agents ship with a system prompt and a README. Neither is structured enough to validate, audit, or hand off. AgentBrief gives you a machine-parseable spec that covers the surfaces that actually cause production failures: undeclared scope, missing escalation paths, untested evals, and compliance blind spots.
+Most agents in production right now were vibe-coded into existence. There is a prompt, a few tools, and a hope. The team tests outputs. Nobody can explain how the agent actually decides anything. When it fails, nobody knows where to look.
+
+AgentBrief is the artifact that fixes that. A YAML spec that lives in your repo, gets diffed in PRs, and is the thing you point to when something goes wrong.
 
 ---
 
-## The 4-question framework
+## The 6-question framework
+
+Every one of the 15 schema sections is owned by exactly one question. No orphans.
 
 | Question | Sections covered |
 |---|---|
-| Q1 — Break it down into operations | `mission` + `scope` |
-| Q2 — Decision rules | `behavior` + `guardrails` |
-| Q3 — Failure points | `evals` + `escalation` + `observability` |
-| Q4 — Self-examination | `lineage` + `versioning` |
+| Q1 — What is this agent? | `identity` |
+| Q2 — What does it do, and what does it never do? | `mission` + `scope` |
+| Q3 — How does it decide, and what tools can it touch? | `behavior` + `guardrails` + `tools` |
+| Q4 — When does it stop, escalate, or remember? | `escalation` + `trust` + `memory` |
+| Q5 — How do we know it is working? | `evals` + `observability` + `compliance` |
+| Q6 — Who owns it, when does it change, and what does it cost? | `versioning` + `lineage` + `sla` |
 
 ---
 
@@ -38,6 +44,7 @@ Optional sections carry a `_maturity` field (`draft` | `reviewed` | `production`
 ## Quickstart
 
 ```yaml
+# Q1 — What is this agent?
 agentbrief_schema: "1.0"
 
 identity:
@@ -47,6 +54,7 @@ identity:
   description: "Handles tier-1 customer support for a SaaS product."
   owner: "product@company.com"
 
+# Q2 — What does it do, and what does it never do?
 mission:
   goal: "Resolve common support requests without human escalation."
   north_star: "< 2 min median resolution time, > 90% CSAT"
@@ -62,24 +70,21 @@ scope:
   out_of_scope:
     - Legal or compliance advice
     - Custom contract negotiations
-  user_types:
+  primary_users:
     - Free users
     - Paid subscribers
 
+# Q3 — How does it decide, and what tools can it touch?
 behavior:
-  tone: professional and concise
-  decision_policy: >
-    Follow the support playbook. When in doubt, ask one clarifying
-    question before acting. Never assume intent.
-  fallback: "Acknowledge, log, and escalate to human agent."
-  language: en
+  default_mode: "Follow playbook; ask one clarifying question before acting"
+  uncertainty_handling: "Acknowledge, offer top-2 answers, offer to escalate"
 
 guardrails:
-  hard_stops:
-    - Never share another customer's account data
-    - Never process refunds over $500 without human approval
-  pii_handling: redact
-  content_policy: company-standard-v2
+  never:
+    - Share another customer's account data
+    - Process refunds over $500 without human approval
+  require_confirmation:
+    - Any action that modifies account settings
 ```
 
 ---
@@ -109,8 +114,6 @@ print('Valid')
 
 ## Eval framework coverage
 
-The schema is designed to map directly to the major agent evaluation frameworks:
-
 | Framework | Covered sections |
 |---|---|
 | NIST AI RMF (Agentic Profile) | `compliance`, `evals`, `guardrails`, `observability` |
@@ -118,13 +121,14 @@ The schema is designed to map directly to the major agent evaluation frameworks:
 | DeepEval / Promptfoo / Braintrust | `evals` |
 | LangSmith / Galileo / Ragas | `observability`, `evals` |
 | GAIA / AgentBench / OSWorld / BFCL | `evals.benchmark_targets` |
+| Sensei (Monday.com) | `mission`, `evals`, `behavior`, `memory` |
 | AIUC-1 (6 domains) | `compliance.aiuc1` |
 
 ---
 
 ## Tooling
 
-[agentbrief.duku.xyz](https://agentbrief.duku.xyz?utm_source=github) — web editor, 1-click validation, compliance scoring, and PDF export.
+[agentbrief.duku.xyz](https://agentbrief.duku.xyz?utm_source=github) — guided authoring, 1-click validation, compliance scoring. Join the waitlist for early access.
 
 The schema is open. The tooling is the product.
 
